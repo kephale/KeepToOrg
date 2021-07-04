@@ -95,7 +95,7 @@ class Note:
         # Add date information
         created = self.date.isoformat()
         imported = self.import_date.isoformat()
-        noteid = 'keep-%s' % hash(body + title)
+        noteid = 'keep-%s' % abs(hash(body + orgTitle))
         body = ':PROPERTIES:\n:CREATED: %s\n:ID: %s\n:IMPORTED: %s\n:END:\n%s' % (
             created, noteid, imported, body)
 
