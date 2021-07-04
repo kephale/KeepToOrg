@@ -96,8 +96,8 @@ class Note:
         # Add date information
         created = self.date.isoformat()
         imported = self.import_date.isoformat()
-        noteid = 'keep-%s' % hashlib.blake2b(
-            (body + orgTitle + created).encode('utf-8')).hexdigest()
+        noteid = 'keep-%s' % hashlib.blake2s(
+            (created + body + orgTitle).encode('utf-8')).hexdigest()
         body = ':PROPERTIES:\n:CREATED: %s\n:ID: %s\n:IMPORTED: %s\n:END:\n%s' % (
             created, noteid, imported, body)
 
