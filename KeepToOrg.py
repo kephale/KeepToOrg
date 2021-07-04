@@ -2,7 +2,6 @@ import os
 import html
 import sys
 import datetime
-
 """
 KeepToOrg.py
 
@@ -18,6 +17,7 @@ based on tags. This will also format lists and try to be smart.
 #   Links have the syntax [[https://blah][Example link]] (things can be internal links too!)
 #   See https://orgmode.org/manual/External-links.html
 
+
 # Convert an array of tags to an Emacs Org tag string
 # Tags have the syntax :tag: or :tag1:tag2:
 def tagsToOrgString(tags):
@@ -30,14 +30,16 @@ def tagsToOrgString(tags):
 
     return tagString
 
+
 class Note:
     def __init__(self):
         self.title = ''
         self.body = ''
         self.tags = []
         self.archived = False
-        # If no date can be parsed, set it to Jan 1, 2000
-        self.date = datetime.datetime(2000, 1, 1)
+        # If no date can be parsed, set it to now
+        self.date = datetime.datetime.now()
+        self.import_date = datetime.datetime.utcnow()
 
     def toOrgString(self):
         # status = '(archived) ' if self.archived else ''
@@ -46,14 +48,22 @@ class Note:
         title = self.title
 
         # Convert lists to org lists. This is a total hack but works
-        body = body.replace('<li class="listitem"><span class="bullet">&#9744;</span>\n', '- [ ] ')
-        body = body.replace('<li class="listitem checked"><span class="bullet">&#9745;</span>', '- [X] ')
+        body = body.replace(
+            '<li class="listitem"><span class="bullet">&#9744;</span>\n',
+            '- [ ] ')
+        body = body.replace(
+            '<li class="listitem checked"><span class="bullet">&#9745;</span>',
+            '- [X] ')
         # Flat out remove these
-        for htmlTagToErase in ['<span class="text">', '</span>', '</li>', '<ul class="list">', '</ul>']:
+        for htmlTagToErase in [
+                '<span class="text">', '</span>', '</li>', '<ul class="list">',
+                '</ul>'
+        ]:
             body = body.replace(htmlTagToErase, '')
         # This is very weird, but fix the edge case where the list entry has a new line before the content
-        for listTypeToFixNewLines in ['- [ ] \n','- [X] \n']:
-            body = body.replace(listTypeToFixNewLines, listTypeToFixNewLines[:-1])
+        for listTypeToFixNewLines in ['- [ ] \n', '- [X] \n']:
+            body = body.replace(listTypeToFixNewLines,
+                                listTypeToFixNewLines[:-1])
 
         # Unescape all (e.g. remove &quot and replace with ")
         title = html.unescape(title)
@@ -82,18 +92,28 @@ class Note:
                 # If the title is the whole body, clear the body
                 body = ''
 
+        # Add date information
+        created = self.date.isoformat()
+        imported = self.import_date.isoformat
+        noteid = 'keep-%s' % hash(body)
+        body = ':PROPERTIES:\n:CREATED: %s\n:ID: %s\n:IMPORTED: %s\n:END:\n%s' % (
+            created, imported, noteid, body)
+
         nesting = '*' if self.archived else ''
         # Various levels of information require different formats
         if body or len(self.tags):
             if body and not len(self.tags):
                 return '*{} {}\n{}'.format(nesting, orgTitle, body)
             if not body and len(self.tags):
-                return '*{} {} {}\n'.format(nesting, orgTitle, tagsToOrgString(self.tags))
+                return '*{} {} {}\n'.format(nesting, orgTitle,
+                                            tagsToOrgString(self.tags))
             else:
-                return "*{} {} {}\n{}\n".format(nesting, orgTitle, body, tagsToOrgString(self.tags))
+                return "*{} {} {}\n{}\n".format(nesting, orgTitle, body,
+                                                tagsToOrgString(self.tags))
         # If no body nor tags, note should be a single line
         else:
             return '*{} {}'.format(nesting, orgTitle)
+
 
 def getAllNoteHtmlFiles(htmlDir):
     print('Looking for notes in {}'.format(htmlDir))
@@ -103,26 +123,29 @@ def getAllNoteHtmlFiles(htmlDir):
             if file.endswith('.html'):
                 noteHtmlFiles.append(os.path.join(root, file))
 
-    print ('Found {} notes'.format(len(noteHtmlFiles)))
-    
+    print('Found {} notes'.format(len(noteHtmlFiles)))
+
     return noteHtmlFiles
+
 
 def getHtmlValueIfMatches(line, tag, endTag):
     if tag.lower() in line.lower() and endTag.lower() in line.lower():
         return line[line.find(tag) + len(tag):-(len(endTag) + 1)], True
-    
+
     return '', False
+
 
 def makeSafeFilename(strToPurify):
     strToPurify = strToPurify.replace('/', '')
     strToPurify = strToPurify.replace('.', '')
     return strToPurify
 
+
 def main(keepHtmlDir, outputDir):
     noteFiles = getAllNoteHtmlFiles(keepHtmlDir)
 
     noteGroups = {}
-    
+
     for noteFilePath in noteFiles:
         # Read in the file
         noteFile = open(noteFilePath)
@@ -132,7 +155,7 @@ def main(keepHtmlDir, outputDir):
         # print('Parsing {}'.format(noteFilePath))
 
         note = Note()
-        
+
         readState = 'lookingForAny'
         numOpenedDivs = 0
         for line in noteLines:
@@ -144,13 +167,15 @@ def main(keepHtmlDir, outputDir):
             if readState == 'lookingForAny':
                 if '<span class="archived" title="Note archived">' in line:
                     note.archived = True
-                    
+
                 # Parse title
-                title, isMatch = getHtmlValueIfMatches(line, '<div class="title">', '</div>')
+                title, isMatch = getHtmlValueIfMatches(line,
+                                                       '<div class="title">',
+                                                       '</div>')
                 if isMatch:
                     note.title = title
                     continue
-                
+
                 if '<div class="content">' in line:
                     readState = 'parsingBody'
 
@@ -158,13 +183,22 @@ def main(keepHtmlDir, outputDir):
                     line = line.replace('<div class="content">', '')
 
                 # Parse the date
-                if ' AM</div>' in line or ' PM</div>' in line:
-                    dateString = line.replace('</div>', '').strip()
-                    # Example: "Apr 27, 2018, 6:32:15 PM"
-                    note.date = datetime.datetime.strptime(dateString, '%b %d, %Y, %I:%M:%S %p')
+                try:
+                    note.date = datetime.datetime.strptime(
+                        line.replace('</div>', '').strip(),
+                        '%d %b %Y, %I:%M:%S')
+                except ValueError:
+                    pass
 
-                # Parse tags, if any
-                potentialTag, isMatch = getHtmlValueIfMatches(line, '<span class="label-name">', '</span>')
+
+#                if ' AM</div>' in line or ' PM</div>' in line:
+#                    dateString = line.replace('</div>', '').strip()
+#                    # Example: "Apr 27, 2018, 6:32:15 PM"
+#                    note.date = datetime.datetime.strptime(dateString, '%b %d, %Y, %I:%M:%S %p')
+
+# Parse tags, if any
+                potentialTag, isMatch = getHtmlValueIfMatches(
+                    line, '<span class="label-name">', '</span>')
                 if isMatch:
                     note.tags.append(potentialTag)
                     continue
@@ -173,8 +207,9 @@ def main(keepHtmlDir, outputDir):
             if readState == 'parsingBody':
                 if line.strip().lower() == '<br>':
                     line = '\n'
-                    
-                if line.strip().lower().endswith('</div>') and numOpenedDivs == 1:
+
+                if line.strip().lower().endswith(
+                        '</div>') and numOpenedDivs == 1:
                     line = line[:-(len('</div>') + 1)]
                     readState = 'lookingForAny'
 
@@ -209,10 +244,10 @@ def main(keepHtmlDir, outputDir):
                 archivedLines.append(note.toOrgString() + '\n')
             else:
                 lines.append(note.toOrgString() + '\n')
-                
+
         if len(archivedLines):
             lines = ['* *Archived*\n'] + archivedLines + lines
-        
+
         outFile = open(outFileName, 'w')
         outFile.writelines(lines)
         outFile.close()
@@ -223,10 +258,11 @@ def main(keepHtmlDir, outputDir):
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print('Wrong number of arguments!\nUsage:\n\tpython KeepToOrg.py /path/to/google/Keep output/dir')
+        print(
+            'Wrong number of arguments!\nUsage:\n\tpython KeepToOrg.py /path/to/google/Keep output/dir'
+        )
 
     else:
         keepHtmlDir = sys.argv[1]
         outputDir = sys.argv[2]
         main(keepHtmlDir, outputDir)
-
