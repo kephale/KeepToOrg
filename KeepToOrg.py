@@ -2,6 +2,7 @@ import os
 import html
 import sys
 import datetime
+import hashlib
 """
 KeepToOrg.py
 
@@ -95,7 +96,8 @@ class Note:
         # Add date information
         created = self.date.isoformat()
         imported = self.import_date.isoformat()
-        noteid = 'keep-%s' % abs(hash(body + orgTitle + created))
+        noteid = 'keep-%s' % hashlib.blake2b(
+            (body + orgTitle + created).encode('utf-8')).hexdigest()
         body = ':PROPERTIES:\n:CREATED: %s\n:ID: %s\n:IMPORTED: %s\n:END:\n%s' % (
             created, noteid, imported, body)
 
