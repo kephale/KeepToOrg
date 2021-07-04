@@ -94,10 +94,10 @@ class Note:
 
         # Add date information
         created = self.date.isoformat()
-        imported = self.import_date.isoformat
-        noteid = 'keep-%s' % hash(body)
+        imported = self.import_date.isoformat()
+        noteid = 'keep-%s' % hash(body + title)
         body = ':PROPERTIES:\n:CREATED: %s\n:ID: %s\n:IMPORTED: %s\n:END:\n%s' % (
-            created, imported, noteid, body)
+            created, noteid, imported, body)
 
         nesting = '*' if self.archived else ''
         # Various levels of information require different formats
