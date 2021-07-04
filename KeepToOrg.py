@@ -93,7 +93,11 @@ class Note:
                 # If the title is the whole body, clear the body
                 body = ''
 
+        orgTitle = orgTitle.strip() + '\n'
+
         # Add date information
+        if body.strip() == '':
+            body = 'EMPTY_NOTE'
         created = self.date.isoformat()
         imported = self.import_date.isoformat()
         noteid = 'keep-%s' % hashlib.blake2s(
@@ -105,7 +109,7 @@ class Note:
         # Various levels of information require different formats
         if body or len(self.tags):
             if body and not len(self.tags):
-                return '*{} {}\n{}'.format(nesting, orgTitle, body)
+                return '*{} {}{}'.format(nesting, orgTitle, body)
             if not body and len(self.tags):
                 return '*{} {} {}\n'.format(nesting, orgTitle,
                                             tagsToOrgString(self.tags))
